@@ -15,7 +15,7 @@ This skill is the final step after `to-prd` and `to-issues`:
 
 It can also consume a plain approved plan or a manually supplied list of issues, but the preferred input is a PRD issue with child implementation issues.
 
-This skill borrows the useful goal-control ideas from GoalBuddy without creating GoalBuddy boards, dashboards, `state.yaml`, subagents, or local servers. The issue tracker remains the durable task board.
+This skill borrows the useful goal-control ideas from GoalBuddy without creating GoalBuddy boards, dashboards, `state.yaml`, or local servers. The issue tracker remains the durable task board. It only plans subagent use when the user explicitly passes `--agent-per-issue`.
 
 ## Goal target
 
@@ -26,9 +26,17 @@ Default to producing goal commands for both Claude Code and Codex CLI unless the
 
 Do not start or replace a goal implicitly. Prepare the handoff first and wait for the user to approve starting it.
 
-## Process
+## Invocation arguments
 
-Invocation arguments may be a PRD issue, issue set, issue numbers, URL, local path, or search terms.
+Invocation arguments may be a PRD issue, issue set, issue numbers, URL, local path, search terms, or flags.
+
+Supported flags:
+
+- `--agent-per-issue`: generate a goal that keeps the main agent as the coordinator and executes each included child issue in a fresh subagent. Use this to preserve the main context window during long PRD implementations.
+
+When parsing arguments, separate flags from target selectors. Target selectors still resolve the PRD or issue set. Flags change only the generated goal contract.
+
+## Process
 
 ### 1. Resolve the target work
 
@@ -83,6 +91,10 @@ Record:
 - **Blind spots**: risks, missing checks, unclear ownership, or unstated product choices
 - **Existing plan facts**: user-provided sequencing, constraints, issue links, or verification expectations to preserve
 
+If `--agent-per-issue` was passed, record this in the intake as:
+
+- **Agent mode**: main coordinator with a fresh subagent per included issue
+
 If authority is blocked, completion proof is missing, or the likely misfire is severe, ask one focused question before drafting the goal.
 
 ### 4. Classify the issue set
@@ -111,8 +123,59 @@ The contract must include:
 - **Validation loop**: per-issue checks and final full-suite or end-to-end checks
 - **Pause conditions**: HITL issue, blocked dependency, missing credential, unavailable service, unclear acceptance criteria, failing check that needs product judgment, or issue tracker permission failure
 - **Progress format**: a clear count of completed issues out of total, plus current issue and validation state
+- **Agent mode**: normal main-thread execution, or fresh subagent per issue when `--agent-per-issue` was passed
 
-### 6. Encode execution rules
+### 6. Add agent-per-issue rules when requested
+
+Only include this section in the generated goal when the user passed `--agent-per-issue`.
+
+The main agent remains the coordinator:
+
+- Read the parent PRD, issue set, tracker convention, `CONTEXT.md`, and ADRs once.
+- Select the next included issue in dependency order.
+- Start a brand-new subagent for that issue. Do not reuse a subagent across issues.
+- Pass only the compact issue packet to the subagent, not the whole parent conversation.
+- Wait for the subagent result before starting the next issue.
+- Review the result, run or inspect validation as needed, update issue acceptance checkboxes, append the receipt, update issue status, report progress, and then continue.
+- Keep final audit, parent PRD handling, and goal completion decisions in the main agent.
+
+Sequential execution is the default. Do not parallelize child issues unless the user separately asks for parallelism and the write scopes are clearly disjoint.
+
+Each subagent receives a compact issue packet:
+
+- Issue reference, title, body or path, and current status
+- Parent PRD or goal contract reference
+- Relevant `CONTEXT.md`, ADR, issue tracker convention, and implementation-notes paths or excerpts
+- Acceptance criteria exactly as written
+- Dependency, blocker, and pause-condition notes
+- Expected validation commands, artifacts, routes, or manual checks
+- Requirement to update `implementation-notes.md` for decisions, deviations, tradeoffs, and open questions when applicable
+- Requirement to stop and return blocked if criteria conflict, credentials are missing, required services are unavailable, or product judgment is needed
+
+Each subagent returns a compact result packet:
+
+```markdown
+Subagent result: done | blocked
+Issue: [reference and title]
+Changed files:
+- [paths or "none"]
+Summary:
+- [what changed or why blocked]
+Acceptance criteria evidence:
+- [criterion] — [passing evidence or blocker]
+Validation:
+- [command, artifact, screenshot, or manual check and result]
+Issue tracker changes made by subagent:
+- [none unless explicitly delegated]
+Implementation notes:
+- [updated/not needed/blocker]
+Remaining blockers:
+- [none or blocker]
+```
+
+The main agent must not mark an issue done just because the subagent says it is done. The main agent must verify that every acceptance criterion passes, update checkboxes so they reflect the passing state, append the implementation receipt, and update issue status according to repo convention.
+
+### 7. Encode execution rules
 
 The generated goal must tell the runner:
 
@@ -125,7 +188,14 @@ The generated goal must tell the runner:
 - Use review or reorientation at phase, risk, rejected-verification, ambiguity, or final-completion boundaries. Do not insert a review after every small change by habit.
 - Finish only after a final audit maps child issue receipts, validation evidence, and parent PRD handling back to the original PRD outcome.
 
-### 7. Require receipts
+If `--agent-per-issue` was passed, add:
+
+- Keep the main agent as coordinator and final auditor.
+- Execute each included issue in a fresh subagent.
+- Do not fork or copy the whole parent conversation into the subagent. Provide the compact issue packet instead.
+- Do not start the next issue until the current subagent result has been reviewed and the issue tracker has been updated or marked blocked.
+
+### 8. Require receipts
 
 Each completed child issue needs fully passing acceptance criteria, issue checkboxes that reflect that passing state, and a compact implementation receipt before it is closed or marked complete.
 
@@ -159,13 +229,15 @@ For blocked issues, record the blocker and continue with safe unblocked work whe
 
 For the parent PRD, require a final audit comment that lists included child issues, acceptance checklist status, receipt status, final validation, excluded/pause-before issues, and whether the PRD should be closed according to repo convention.
 
-### 8. Prepare CLI-specific goal commands
+### 9. Prepare CLI-specific goal commands
 
 Progress reports must include:
 
 ```markdown
 Progress: [completed]/[total] issues complete
 Current: [issue reference and title]
+Agent mode: [main | fresh subagent]
+Subagent: [not used | not started | running | done | blocked]
 Acceptance criteria: [passing and checked]/[total]
 Receipt: [posted/not yet/blocked]
 Verified: [what passed, or "not yet"]
@@ -174,16 +246,30 @@ Remaining: [count and next issue reference]
 Blocked: [none or blocker]
 ```
 
+When `--agent-per-issue` is not passed, use `Agent mode: main` and `Subagent: not used`.
+
 For Claude Code, phrase the command as a transcript-visible completion condition:
 
 ```markdown
 /goal Complete the selected PRD issue set. Continue until the transcript shows that [completed]/[total] included child issues fully satisfy every acceptance criterion, have issue checkboxes updated to reflect those passing criteria, have implementation receipts mapping evidence to each criterion, passed validation, were updated in the issue tracker, and the parent PRD has a final audit handled according to repo convention. Work one issue at a time in dependency order, continue around blocked issues when safe, report completed/total progress and criteria passing-and-checked/total after each issue, and pause before [pause conditions].
 ```
 
+When `--agent-per-issue` is passed, add this Claude Code requirement to the command or full goal contract:
+
+```markdown
+Use a fresh Claude Code subagent with its own context window for each included child issue. Do not use a fork that copies the full parent conversation. The main thread stays the coordinator: it selects the next issue, gives the subagent only the compact issue packet, waits for the result, verifies acceptance criteria, updates checkboxes and receipts, reports progress, and then starts the next fresh subagent. If no suitable custom subagent exists, use a general-purpose subagent if available; otherwise state that subagent mode is unavailable and pause before implementing locally.
+```
+
 For Codex CLI, phrase the command as a durable execution objective:
 
 ```markdown
 /goal Implement the selected PRD issue set without stopping until every included child issue fully satisfies every acceptance criterion, has issue checkboxes updated to reflect those passing criteria, has an implementation receipt mapping evidence to each criterion, passed validation, child issue tracker state has been updated, and the parent PRD has a final audit handled according to repo convention. Read [first-read context] first. Work one issue at a time in dependency order: [issue checkpoints]. Continue around blocked issues when safe. Report completed/total progress and criteria passing-and-checked/total after each issue. Pause for [pause conditions].
+```
+
+When `--agent-per-issue` is passed, add this Codex CLI requirement to the command or full goal contract:
+
+```markdown
+For each included child issue, explicitly spawn a fresh Codex worker subagent. Do not set fork_context and do not copy the full parent conversation; pass only the compact issue packet. The main thread must wait for the worker result, review and verify it, update acceptance checkboxes and receipts, report progress, and only then start the next worker. Keep execution sequential by default. Use parallel workers only if the user later asks and write scopes are disjoint.
 ```
 
 If either command would exceed 4,000 characters, recommend storing the full goal contract in the parent PRD issue, a child tracking issue, or a repo plan document, then make the `/goal` command reference that durable artifact.
@@ -204,6 +290,7 @@ If either command would exceed 4,000 characters, recommend storing the full goal
 - Likely misfire: [misfire]
 - Blind spots: [risks considered]
 - Existing plan facts: [facts to preserve]
+- Agent mode: [main | main coordinator with fresh subagent per issue]
 
 ## Issue set
 
@@ -232,6 +319,9 @@ Execution rules:
 - Complete the largest safe useful slice for each issue.
 - Continue around blocked issues when safe.
 - Finish only after final audit.
+
+Subagent execution:
+[Omit if not using --agent-per-issue. Otherwise describe the fresh-subagent-per-issue rule, issue packet, result packet, and CLI-specific Claude/Codex requirements.]
 
 Validation loop:
 - [Per-issue and final checks]
