@@ -146,6 +146,7 @@ Each subagent receives a compact issue packet:
 - Issue reference, title, body or path, and current status
 - Parent PRD or goal contract reference
 - Relevant `CONTEXT.md`, ADR, issue tracker convention, and implementation-notes paths or excerpts
+- Existing `## Technical Spec` or `## Technical Plan` from the issue, when present
 - Acceptance criteria exactly as written
 - Dependency, blocker, and pause-condition notes
 - Expected validation commands, artifacts, routes, or manual checks
@@ -180,6 +181,7 @@ The main agent must not mark an issue done just because the subagent says it is 
 The generated goal must tell the runner:
 
 - Work one child issue at a time in dependency order unless the user explicitly asks for parallel work.
+- Before implementing each issue, read its `## Technical Spec` if present. Also accept an older `## Technical Plan` heading if present. If neither exists, do a brief codebase-grounded planning pass for that issue before changing code: inspect the relevant files at HEAD, identify existing patterns to follow, map each acceptance criterion to implementation areas and validation evidence, name the focused tests or checks to run, state the posture constraints for the issue, and list explicit out-of-scope follow-ups. Treat a missing technical spec as a warning to plan carefully, not as a blocker.
 - Complete each issue as a coherent vertical slice. Do not stop after tiny helper work when the issue's behavior is not done.
 - Do not mark the goal complete after planning, discovery, or selecting the next issue.
 - Do not mark the goal complete after one issue if more included issues remain.
