@@ -156,6 +156,7 @@ Skills I use daily for code work.
 - **[to-issues](./skills/engineering/to-issues/SKILL.md)** — Break any plan, spec, or PRD into independently-grabbable GitHub issues using vertical slices.
 - **[to-goal](./skills/engineering/to-goal/SKILL.md)** — Turn a PRD issue set into a Claude Code or Codex CLI `/goal` prompt that works through child issues until complete, with optional fresh subagents per issue.
 - **[to-prd](./skills/engineering/to-prd/SKILL.md)** — Turn the current conversation context into a PRD and submit it as a GitHub issue. No interview — just synthesizes what you've already discussed.
+- **[to-research](./skills/engineering/to-research/SKILL.md)** — Pressure-test the assumptions in a PRD or issue set against external best practices using a team of parallel web-research agents, align with you one question at a time (grill-me style), then fold the approved findings back into the PRD (and optionally its issues).
 - **[zoom-out](./skills/engineering/zoom-out/SKILL.md)** — Tell the agent to zoom out and give broader context or a higher-level perspective on an unfamiliar section of code.
 - **[prototype](./skills/engineering/prototype/SKILL.md)** — Build a throwaway prototype to flesh out a design — either a runnable terminal app for state/business-logic questions, or several radically different UI variations toggleable from one route.
 
