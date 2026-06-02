@@ -1,6 +1,7 @@
 {
   "name": "mattpocock-skills",
   "skills": [
+    "./skills/engineering/archive-completed",
     "./skills/engineering/diagnose",
     "./skills/engineering/grill-with-docs",
     "./skills/engineering/issues-to-specs",

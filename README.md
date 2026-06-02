@@ -146,6 +146,7 @@ Software engineering fundamentals matter more than ever. These skills are my bes
 
 Skills I use daily for code work.
 
+- **[archive-completed](./skills/engineering/archive-completed/SKILL.md)** — Sweep fully-completed features (a PRD plus its issues) out of the active issue tracker, so the active surface only shows work with outstanding issues. Moves finished feature directories into `archived/` on the local-markdown tracker, or closes the parent PRD on GitHub/GitLab.
 - **[diagnose](./skills/engineering/diagnose/SKILL.md)** — Disciplined diagnosis loop for hard bugs and performance regressions: reproduce → minimise → hypothesise → instrument → fix → regression-test.
 - **[grill-with-docs](./skills/engineering/grill-with-docs/SKILL.md)** — Grilling session that challenges your plan against the existing domain model, sharpens terminology, and updates `CONTEXT.md` and ADRs inline.
 - **[issues-to-specs](./skills/engineering/issues-to-specs/SKILL.md)** — Add lightweight codebase-grounded technical specs to implementation issues before goal-driven execution.
